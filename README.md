@@ -1,4 +1,4 @@
-# philosophers
+# philo
 
 A multithreaded C program that solves the classic **Dining Philosophers** concurrency problem using POSIX threads and mutexes.
 
@@ -35,12 +35,22 @@ All times in milliseconds. The optional 6th argument makes the simulation stop o
 
 ## Build
 
-make            # Compile
-make clean      # Remove object files
-make fclean     # Remove objects and binary
-make re         # Full rebuild
+Compilar el proyecto:
 
-Compiled with `cc -Wall -Wextra -Werror -pthread`.
+```bash
+make
+```
+
+Targets disponibles:
+
+| Target | Descripción |
+|--------|-------------|
+| `make` | Compila el proyecto (equivale a `make all`) |
+| `make clean` | Elimina los archivos objeto y el directorio `obj/` |
+| `make fclean` | Ejecuta `clean` y elimina el binario `philo` |
+| `make re` | Compilación completa: `fclean` + `make all` |
+
+Compilado con `cc -Wall -Wextra -Werror -pthread`.
 
 ## Architecture
 
