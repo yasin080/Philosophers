@@ -1,4 +1,4 @@
-# philo
+# philosophers
 
 A multithreaded C program that solves the classic **Dining Philosophers** concurrency problem using POSIX threads and mutexes.
 
