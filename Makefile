@@ -1,48 +1,31 @@
-# **************************************************************************** #
-#                                                                              #
-#                                                         :::      ::::::::    #
-#    Makefile                                           :+:      :+:    :+:    #
-#                                                     +:+ +:+         +:+      #
-#    By: ybahri <ybahri@student.42.fr>              +#+  +:+       +#+         #
-#                                                 +#+#+#+#+#+   +#+            #
-#    Created: 2025/06/02 01:00:28 by ybahri            #+#    #+#              #
-#    Updated: 2025/07/24 11:46:56 by ybahri           ###   ########.fr        #
-#                                                                              #
-# **************************************************************************** #
+NAME		= philo
+CC			= cc
+CFLAGS		= -Wall -Wextra -Werror -pthread
+HEADER		= philo.h
 
-CC = cc
-CC_FLAGS = -Wall -Wextra -Werror
-OBJDIR = obj
-HEADER = philo.h
-SRCDIR = .
-INFILES =	main.c \
-			init.c \
-			parsing.c \
-			security.c \
-			utils.c \
-			getters_setters.c \
-			write_status.c \
-			dinner.c \
-			monitor.c \
-			sync_utils.c \
+SRCS		= main.c \
+			  parse.c \
+			  init.c \
+			  routine.c \
+			  monitor.c \
+			  print.c \
+			  time.c
 
-OBJFILES = $(INFILES:%.c=$(OBJDIR)/%.o)
+OBJDIR		= obj
+OBJS		= $(SRCS:%.c=$(OBJDIR)/%.o)
 
-NAME = philo
+all: $(NAME)
 
-all: setup $(NAME)
+$(NAME): $(OBJS)
+	$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
 
-$(NAME): $(OBJFILES) $(HEADER)
-	$(CC) $(CC_FLAGS) $(OBJFILES) -o $(NAME) -pthread
+$(OBJDIR)/%.o: %.c $(HEADER) | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c
-	$(CC) $(CC_FLAGS) -c $< -o $@ -pthread
-
-setup:
-	@mkdir -p $(OBJDIR)
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
 
 clean:
-	rm -f $(OBJFILES)
 	rm -rf $(OBJDIR)
 
 fclean: clean
@@ -50,4 +33,4 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean setup re
+.PHONY: all clean fclean re

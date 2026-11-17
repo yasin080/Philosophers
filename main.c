@@ -1,29 +1,47 @@
-/******************************************************************************/
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   main.c                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ybahri <ybahri@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/03 15:17:32 by ybahri            #+#    #+#             */
-/*   Updated: 2025/07/22 10:28:07 by ybahri           ###   ########.fr       */
-/*                                                                            */
-/******************************************************************************/
-
 #include "philo.h"
 
-int	main(int ac, char **av)
+static int	start_threads(t_table *table)
 {
-	(void)av;
+	int	i;
 
-	t_table	table;
-	if(ac == 5 || ac == 6)
+	table->start = now_ms() + 10 + table->count / 10;
+	i = 0;
+	while (i < table->count)
 	{
-		parse_input(&table, av);
-		data_init(&table);
-		dinner_start(&table);
-		clean(&table);
+		table->philos[i].last_meal = table->start;
+		if (pthread_create(&table->philos[i].thread, NULL, philo_routine,
+				&table->philos[i]))
+		{
+			printf("philo: could not create thread %d\n", i + 1);
+			set_stopped(table);
+			return (i);
+		}
+		i++;
 	}
-	else
-		error_exit("Wrong input: \nCorrect example is: ./philo 5 800 200 200 [5]");
+	return (i);
+}
+
+int	main(int argc, char **argv)
+{
+	t_table	table;
+	int		created;
+	int		i;
+
+	if (!parse_args(&table, argc, argv))
+		return (1);
+	if (table.must_eat == 0)
+		return (0);
+	if (!table_init(&table))
+	{
+		printf("philo: initialisation failed\n");
+		return (1);
+	}
+	created = start_threads(&table);
+	if (created == table.count)
+		monitor(&table);
+	i = 0;
+	while (i < created)
+		pthread_join(table.philos[i++].thread, NULL);
+	table_destroy(&table);
+	return (created != table.count);
 }

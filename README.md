@@ -1,37 +1,50 @@
 # philosophers
 
-A multithreaded C program that solves the classic **Dining Philosophers** concurrency problem using POSIX threads and mutexes.
+My solution to the Dining Philosophers problem for 42, in C with POSIX
+threads and mutexes.
 
-## The Problem
-
-Five philosophers sit around a circular table. Between each pair of philosophers lies a single fork. To eat, a philosopher must pick up both forks — the one to their left and the one to their right. After eating, they put the forks down and start thinking. If every philosopher picks up their left fork at the same time, they all wait forever for the right fork — this is a **deadlock**. If a philosopher goes too long without eating, they **starve and die**.
-
-The challenge: coordinate N philosophers sharing N forks using threads and mutual exclusion so that no one starves and no one deadlocks.
-
-## Solution Approach
-
-- **One thread per philosopher** — each philosopher runs an eat → sleep → think loop independently.
-- **One mutex per fork** — a philosopher must lock both adjacent forks before eating, preventing two neighbors from sharing the same fork.
-- **Asymmetric fork assignment** — even-numbered philosophers pick up the left fork first, odd-numbered philosophers pick up the right fork first. This breaks the circular wait condition and prevents deadlocks.
-- **Monitor thread** — a separate thread continuously checks if any philosopher has exceeded `time_to_die` since their last meal. If so, it flags the simulation as ended.
-- **Thread-safe shared state** — all reads and writes to shared variables (meal counts, last meal time, simulation status) go through mutex-protected getter/setter functions.
-- **Precise timing** — a hybrid `usleep` + spinlock scheduler keeps timing accurate to ~1ms, checking for simulation end during waits.
-- **Staggered start** — philosophers don't all start simultaneously. Even/odd staggering reduces initial contention for forks.
-- **Single philosopher edge case** — handled separately: with only one philosopher and one fork, they take the fork and wait until they die.
+N philosophers sit around a table with one fork between each pair. To eat, a
+philosopher needs both forks next to them. If one of them goes `time_to_die`
+milliseconds without starting a meal, they die and the simulation stops. The
+program has to avoid deadlocks and print every state change in order.
 
 ## Usage
 
+```
 ./philo number_of_philosophers time_to_die time_to_eat time_to_sleep [number_of_times_each_philosopher_must_eat]
+```
 
-All times in milliseconds. The optional 6th argument makes the simulation stop once every philosopher has eaten at least that many meals.
+Times are in milliseconds. With the optional last argument the simulation ends
+once every philosopher has eaten at least that many times. Every argument must
+be a positive integer (the last one can be 0, which ends immediately).
 
-## Examples
+```
+./philo 1 800 200 200          # one philosopher, dies at 800 ms
+./philo 5 800 200 200          # nobody dies
+./philo 4 400 200 200          # a philosopher dies at 400 ms
+./philo 4 410 200 200          # nobody dies (410 > 2 * 200)
+./philo 5 800 200 200 7        # stops after 7 meals each
+```
 
-./philo 1 800 200 200          # One philosopher, dies at 800ms
-./philo 5 800 200 200          # No one dies
-./philo 4 400 200 200          # Philosopher dies at 400ms
-./philo 4 410 200 200          # No one dies (410 > 2*200)
-./philo 5 800 200 200 7        # Stops after 7 meals each
+## How it works
+
+- One thread per philosopher and one mutex per fork.
+- Odd philosophers take their left fork first, even ones their right fork.
+  With that order the circular wait cannot happen, so there is no deadlock.
+- The main thread is the monitor: it checks every philosopher's last meal
+  time (protected by a per-philosopher mutex) and stops the simulation on a
+  death or when everyone has eaten enough.
+- A shared `stop` flag, also behind a mutex, is checked by every thread.
+  "died" is printed while holding the print mutex and raising the flag at the
+  same time, so nothing is printed after it.
+- All threads wait for a common start time. Even philosophers start half a
+  meal late, and with an odd number of philosophers thinking takes a bit of
+  time so the hungriest neighbour gets the forks first.
+- Sleeping is done in small `usleep` steps so a philosopher notices the end of
+  the simulation quickly.
+
+Checked with `-fsanitize=thread` (no data races) and with 1 to 200
+philosophers.
 
 ## Build
 
@@ -52,20 +65,23 @@ Targets disponibles:
 
 Compilado con `cc -Wall -Wextra -Werror -pthread`.
 
-## Architecture
+## Files
 
-File                | Purpose
---------------------|----------------------------------------------
-main.c              | Entry point, argument validation
-parsing.c           | Input parsing and validation
-init.c              | Data initialization and fork assignment
-dinner.c            | Philosopher simulation (eat/sleep/think)
-monitor.c           | Death detection thread
-write_status.c      | Mutex-protected status output
-getters_setters.c   | Thread-safe accessors for shared state
-sync_utils.c        | Thread synchronization utilities
-security.c          | Safe wrappers for malloc, mutex, pthread
-utils.c             | Time, sleep, cleanup utilities
-philo.h             | Header: types, structs, prototypes
+| File | Purpose |
+|------|---------|
+| `main.c` | starts the threads, runs the monitor, joins and cleans up |
+| `parse.c` | argument validation |
+| `init.c` | mutexes, philosophers and fork order |
+| `routine.c` | eat / sleep / think loop |
+| `monitor.c` | death and "everyone ate enough" checks |
+| `print.c` | stop flag and state messages |
+| `time.c` | time in ms and sleeping helpers |
+| `philo.h` | structs and prototypes |
+
+## What I'd improve
+
+- The bonus version with processes and semaphores.
+- Replace the monitor's polling with a smarter wake-up, it currently checks
+  every 0.5 ms.
 
 Author: ybahri (42)

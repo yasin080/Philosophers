@@ -1,56 +1,47 @@
-/******************************************************************************/
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   monitor.c                                          :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ybahri <ybahri@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/02 20:42:30 by ybahri            #+#    #+#             */
-/*   Updated: 2025/07/22 10:26:59 by ybahri           ###   ########.fr       */
-/*                                                                            */
-/******************************************************************************/
-
 #include "philo.h"
 
-static bool philo_died(t_philo *philo)
+static bool	check_philo(t_philo *philo, int *full)
 {
-	long	time_since_last_meal;
-	long	current_time;
+	t_table	*table;
 	long	last_meal;
+	int		meals;
 
-	if(philo->full)
-		return false;
-	current_time = get_time(MICROSECOND);
-	last_meal = get_long(philo->philo_mutex, &philo->last_meal_time);
-	time_since_last_meal = current_time - last_meal;
-	return (time_since_last_meal >= philo->table->time_to_die);
+	table = philo->table;
+	pthread_mutex_lock(&philo->meal_lock);
+	last_meal = philo->last_meal;
+	meals = philo->meals;
+	pthread_mutex_unlock(&philo->meal_lock);
+	if (now_ms() - last_meal >= table->time_to_die)
+	{
+		print_death(philo);
+		return (true);
+	}
+	if (table->must_eat > 0 && meals >= table->must_eat)
+		(*full)++;
+	return (false);
 }
 
-void	*monitor_dinner(void *data)
+void	monitor(t_table *table)
 {
-	int i;
-	t_table	*table;
-	bool	simulation_ended;
+	int	i;
+	int	full;
 
-	table = (t_table *)data;
-	simulation_ended = false;
-	while(!all_threads_running(&table->table_mutex,
-			&table->threads_running_nbr, table->philo_nbr));
-	while(!simulation_ended)
+	wait_until(table->start);
+	while (!is_stopped(table))
 	{
-		i = -1;
-		while(++i < table->philo_nbr)
+		full = 0;
+		i = 0;
+		while (i < table->count)
 		{
-			if(philo_died(table->philos + i))
-			{
-				set_bool(&table->table_mutex, &table->simulation_end, true);
-				write_status(DIED, table->philos + i);
-				simulation_ended = true;
-				return NULL;
-			}
+			if (check_philo(&table->philos[i], &full))
+				return ;
+			i++;
 		}
-		if(!simulation_ended)
-			precise_usleep(50, table);
+		if (table->must_eat > 0 && full == table->count)
+		{
+			set_stopped(table);
+			return ;
+		}
+		usleep(500);
 	}
-	return NULL;
 }

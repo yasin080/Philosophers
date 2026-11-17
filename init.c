@@ -1,72 +1,84 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   init.c                                             :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: ybahri <ybahri@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/03 15:17:29 by ybahri            #+#    #+#             */
-/*   Updated: 2025/07/24 18:36:34 by ybahri           ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "philo.h"
 
-static void assign_forks(t_philo *philo, t_fork *forks,
-		int philo_position)
+/*
+** Odd philosophers pick the left fork first and even ones the right fork,
+** so the "everyone holds one fork and waits" cycle can never close.
+*/
+static void	assign_forks(t_table *table, t_philo *philo, int i)
 {
-	int	philo_nbr;
+	pthread_mutex_t	*left;
+	pthread_mutex_t	*right;
 
-	philo_nbr = philo->table->philo_nbr;
-	if(philo->id % 2 == 0)
+	left = &table->forks[i];
+	right = &table->forks[(i + 1) % table->count];
+	if (philo->id % 2)
 	{
-		philo->first_fork = &forks[philo_position];
-		philo->second_fork = &forks[(philo_position + 1) % philo_nbr];
+		philo->first_fork = left;
+		philo->second_fork = right;
 	}
 	else
 	{
-		philo->first_fork = &forks[(philo_position + 1) % philo_nbr];
-		philo->second_fork = &forks[philo_position];
+		philo->first_fork = right;
+		philo->second_fork = left;
 	}
 }
 
-static void	philo_init(t_table *table)
+static bool	init_mutexes(t_table *table)
 {
-	int i = -1;
-	t_philo *philo;
+	int	i;
 
-	while(++i < table->philo_nbr)
+	if (pthread_mutex_init(&table->stop_lock, NULL)
+		|| pthread_mutex_init(&table->print_lock, NULL))
+		return (false);
+	i = 0;
+	while (i < table->count)
 	{
-		philo = table->philos + i;
-		philo->id = i + 1;
-		philo->full = false;
-		philo->meals_counter = 0;
-		philo->table = table;
-		philo->last_meal_time = 0;
-		philo->philo_mutex = malloc(sizeof(t_mtx));
-		if (!philo->philo_mutex)
-			error_exit("Malloc failed for philo_mutex");
-		safe_mutex_handle(philo->philo_mutex, INIT);
-		assign_forks(philo, table->forks, i);
+		if (pthread_mutex_init(&table->forks[i], NULL)
+			|| pthread_mutex_init(&table->philos[i].meal_lock, NULL))
+			return (false);
+		i++;
 	}
+	return (true);
 }
 
-void	data_init(t_table *table)
+bool	table_init(t_table *table)
 {
-	int i = -1;
+	int	i;
 
-	table->simulation_end = false;
-	table->all_threads_created = false;
-	table->threads_running_nbr = 0;
-	table->philos = safe_malloc(sizeof(t_philo) * table->philo_nbr);
-	table->forks = safe_malloc(sizeof(t_fork) * table->philo_nbr);
-	safe_mutex_handle(&table->table_mutex, INIT);
-	safe_mutex_handle(&table->write_mutex, INIT);
-
-	while(++i < table->philo_nbr)
+	table->stop = false;
+	table->forks = malloc(sizeof(pthread_mutex_t) * table->count);
+	table->philos = malloc(sizeof(t_philo) * table->count);
+	if (!table->forks || !table->philos || !init_mutexes(table))
 	{
-		safe_mutex_handle(&table->forks[i].fork, INIT);
-		table->forks[i].fork_id = i;
+		free(table->forks);
+		free(table->philos);
+		return (false);
 	}
-	philo_init(table);
+	i = 0;
+	while (i < table->count)
+	{
+		table->philos[i].id = i + 1;
+		table->philos[i].meals = 0;
+		table->philos[i].table = table;
+		assign_forks(table, &table->philos[i], i);
+		i++;
+	}
+	return (true);
+}
+
+void	table_destroy(t_table *table)
+{
+	int	i;
+
+	i = 0;
+	while (i < table->count)
+	{
+		pthread_mutex_destroy(&table->forks[i]);
+		pthread_mutex_destroy(&table->philos[i].meal_lock);
+		i++;
+	}
+	pthread_mutex_destroy(&table->stop_lock);
+	pthread_mutex_destroy(&table->print_lock);
+	free(table->forks);
+	free(table->philos);
 }
